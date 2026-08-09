@@ -35,13 +35,17 @@ than making a second one. Your edits are remembered per component, so a
 re-run after a component change keeps your writing and refreshes the props,
 tokens and specimens.
 
+A re-run only replaces the sections Cofig itself created. Anything else you
+keep on that page — the component set, scratch frames, annotations — is left
+alone, so you can park the component below its docs the way Blade does.
+
 ## What is derived automatically
 
 | Section | Where it comes from |
 | --- | --- |
 | Props table | `componentPropertyDefinitions` — names, types, variant options, defaults |
 | Tokens table | Bound variables where present, measured padding/gap/radius/fills where not |
-| Anatomy | Layer names of the default variant, with leader lines |
+| Anatomy | Layer names, drawn on an instance with every boolean property switched on so optional parts are visible |
 | Variations | One instance per value of each variant property |
 | Platforms | Desktop / tablet / mobile specimens |
 | Introduction | The component's Figma description if it has one, otherwise a template |

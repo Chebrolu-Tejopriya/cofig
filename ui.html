@@ -576,6 +576,7 @@
       introduction: defaults.introduction,
       props: data.props,
       tokens: data.tokens,
+      anatomyParts: (data.partKeys || data.parts).slice(),  // name#occurrence keys used to match labels
       anatomyLabels: data.parts.slice(),
       usage: defaults.usage,
       content: defaults.content,
@@ -589,7 +590,7 @@
     if (saved) {
       // keep the user's prose, but re-read structure from the live component
       Object.keys(base).forEach(function (k) {
-        if (k === 'props' || k === 'tokens' || k === 'targetId') return;
+        if (k === 'props' || k === 'tokens' || k === 'targetId' || k === 'anatomyParts') return;
         if (saved[k] !== undefined) base[k] = saved[k];
       });
       if (saved.props) {

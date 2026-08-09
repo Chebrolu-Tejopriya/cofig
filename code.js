@@ -537,7 +537,7 @@ function usablePartName(name) {
   return s.length >= 2 && s.length <= 28 && /[a-z]/i.test(s);
 }
 
-function collectParts(root, limit) {
+function collectParts(root, limit, includeHidden) {
   var out = [];
   function walk(node, depth) {
     if (out.length >= limit || depth > 4) return;
@@ -545,7 +545,7 @@ function collectParts(root, limit) {
     for (var i = 0; i < kids.length; i++) {
       if (out.length >= limit) return;
       var ch = kids[i];
-      if (ch.visible === false) continue;
+      if (ch.visible === false && !includeHidden) continue;
       var named = ch.name && ch.name.charAt(0) !== '.' && ch.name.charAt(0) !== '_' &&
         !SKIP_PART.test(ch.name) && usablePartName(ch.name);
       var leafish = !ch.children || ch.children.length === 0 || ch.type === 'INSTANCE' || ch.type === 'TEXT';
@@ -558,6 +558,19 @@ function collectParts(root, limit) {
   }
   walk(root, 0);
   return out;
+}
+
+/**
+ * Components routinely repeat a layer name — a leading and trailing "arrow
+ * right", say — so labels are keyed by name plus occurrence, letting each one
+ * be renamed independently.
+ */
+function partKeys(names) {
+  var seen = {};
+  return names.map(function (n) {
+    seen[n] = (seen[n] || 0) + 1;
+    return n + '#' + (seen[n] - 1);
+  });
 }
 
 function partRect(part, instance) {
@@ -610,14 +623,17 @@ function maxTier(items) {
  * labelled leader lines pointing at each part. Parts in the top half of the
  * component are labelled above it, the rest below.
  */
-function anatomyStage(instance, labels, contentWidth, dark) {
+function anatomyStage(instance, labelMap, contentWidth, dark) {
   var parts = collectParts(instance, 8);
+  var keys = partKeys(parts.map(function (p) { return p.name; }));
 
   var items = [];
   for (var i = 0; i < parts.length; i++) {
     var rect = partRect(parts[i], instance);
-    var provided = labels && labels[i] !== undefined && labels[i] !== null && String(labels[i]).trim();
-    var text = cleanLabel(provided ? labels[i] : parts[i].name);
+    // Matched by layer name, not position: the anatomy instance reveals parts
+    // that were hidden when the label list was drafted, so indexes drift.
+    var provided = labelMap && labelMap[keys[i]];
+    var text = cleanLabel(provided ? provided : parts[i].name);
     if (!text) continue;
     items.push({
       rect: rect,
@@ -939,7 +955,10 @@ async function analyze(target) {
     return (order[a.figmaType] - order[b.figmaType]) || a.name.localeCompare(b.name);
   });
 
-  var parts = collectParts(dv, 8).map(function (p) { return p.name; });
+  // Hidden children are listed too: the anatomy diagram switches boolean
+  // properties on, so optional parts become visible and worth labelling.
+  var parts = collectParts(dv, 8, true).map(function (p) { return p.name; });
+  var keys = partKeys(parts);
   var tokens = await readTokens(dv);
 
   return {
@@ -950,6 +969,7 @@ async function analyze(target) {
     description: target.description || '',
     props: props,
     parts: parts,
+    partKeys: keys,
     tokens: tokens
   };
 }
@@ -963,6 +983,34 @@ function makeInstance(target, propsToSet) {
   var inst = dv.createInstance();
   if (propsToSet) {
     try { inst.setProperties(propsToSet); } catch (e) { /* invalid combo, keep default */ }
+  }
+  return inst;
+}
+
+/**
+ * An anatomy diagram should show the component at its fullest, not its default —
+ * optional icons, counters and dismiss buttons are exactly the parts worth
+ * labelling, and they are usually switched off by default. Blade authors this by
+ * hand; here we just turn every boolean property on.
+ */
+function makeAnatomyInstance(target) {
+  var inst = makeInstance(target);
+  var defs = target.componentPropertyDefinitions || {};
+  var setter = {};
+  Object.keys(defs).forEach(function (k) {
+    if (defs[k].type === 'BOOLEAN') setter[k] = true;
+  });
+  if (Object.keys(setter).length) {
+    try {
+      inst.setProperties(setter);
+    } catch (e) {
+      // Some components reject a combination; fall back one property at a time.
+      Object.keys(setter).forEach(function (k) {
+        var one = {};
+        one[k] = true;
+        try { inst.setProperties(one); } catch (e2) { /* skip this one */ }
+      });
+    }
   }
   return inst;
 }
@@ -983,10 +1031,15 @@ function buildIntroduction(target, cfg, data) {
   add(s.body, T(cfg.introduction, opts(TYPE.sectionDesc, { width: w, name: 'intro-copy' })), true);
 
   if (cfg.sections.anatomy) {
+    var labelMap = {};
+    var origin = cfg.anatomyParts || [];
+    for (var i = 0; i < origin.length; i++) {
+      if (cfg.anatomyLabels && cfg.anatomyLabels[i]) labelMap[origin[i]] = cfg.anatomyLabels[i];
+    }
     var anatomy = F('anatomy', { dir: 'VERTICAL', gap: 16, width: w });
-    add(anatomy, anatomyStage(makeInstance(target), cfg.anatomyLabels, w, false), true);
+    add(anatomy, anatomyStage(makeAnatomyInstance(target), labelMap, w, false), true);
     if (cfg.darkAnatomy) {
-      add(anatomy, anatomyStage(makeInstance(target), cfg.anatomyLabels, w, true), true);
+      add(anatomy, anatomyStage(makeAnatomyInstance(target), labelMap, w, true), true);
     }
     add(s.body, anatomy, true);
   }
@@ -1193,16 +1246,25 @@ function buildChanges(cfg) {
   return s.section;
 }
 
+/**
+ * Blade's `_Thumb` is a COMPONENT, not a frame — that is what lets Figma use it
+ * as the page's thumbnail in the asset browser, so it is built as one here too.
+ */
 function buildThumb(target, cfg, data) {
-  var thumb = F('_Thumb', {
-    dir: 'VERTICAL', gap: 0, width: 380, fill: COLOR.thumb,
-    align: 'CENTER', justify: 'CENTER', radius: 8, pad: [32, 32, 32, 32]
-  });
+  var thumb = figma.createComponent();
+  thumb.name = '_Thumb';
+  thumb.layoutMode = 'VERTICAL';
+  thumb.paddingTop = thumb.paddingBottom = thumb.paddingLeft = thumb.paddingRight = 32;
+  thumb.itemSpacing = 0;
   thumb.resize(380, 272);
   thumb.primaryAxisSizingMode = 'FIXED';
   thumb.counterAxisSizingMode = 'FIXED';
+  thumb.primaryAxisAlignItems = 'CENTER';
+  thumb.counterAxisAlignItems = 'CENTER';
+  thumb.cornerRadius = 8;
   thumb.clipsContent = true;
-  add(thumb, makeInstance(target));
+  thumb.fills = [solid(COLOR.thumb)];
+  thumb.appendChild(makeInstance(target));
   return thumb;
 }
 
@@ -1212,6 +1274,27 @@ function buildThumb(target, cfg, data) {
 
 var MARKER_NS = 'cofig';
 var MARKER_KEY = 'docs-target';
+var OWNED_KEY = 'generated';
+
+// Section frames Cofig produces. Used to recognise output from an earlier build
+// that predates the OWNED_KEY tag, so a re-run replaces it instead of duplicating.
+var OWNED_NAMES = {
+  '_Thumb': 1, '_Introduction': 1, '_Component Props': 1, '_Variations': 1,
+  '_Usage Guidelines': 1, '_Content Guidelines': 1, '_Platforms': 1,
+  '_Accessibility': 1, '_Changes': 1
+};
+
+/**
+ * Whether a node on a docs page was put there by Cofig.
+ * Anything else — a component set, a scratch frame, notes someone parked on the
+ * page — is the user's and must survive a re-run.
+ */
+function isOurs(node) {
+  try {
+    if (node.getSharedPluginData(MARKER_NS, OWNED_KEY) === '1') return true;
+  } catch (e) { /* fall through to the name check */ }
+  return OWNED_NAMES[node.name] === 1;
+}
 
 async function generate(cfg) {
   var target = await figma.getNodeByIdAsync(cfg.targetId);
@@ -1236,8 +1319,13 @@ async function generate(cfg) {
     page.setSharedPluginData(MARKER_NS, MARKER_KEY, target.id);
   } else {
     await page.loadAsync();
+    // Only clear Cofig's own sections. Users park real work on this page —
+    // Blade keeps the component set itself below the docs — and wiping the
+    // whole page would delete it.
     var existing = page.children.slice();
-    for (var k = 0; k < existing.length; k++) existing[k].remove();
+    for (var k = 0; k < existing.length; k++) {
+      if (isOurs(existing[k])) existing[k].remove();
+    }
   }
   page.name = pageName;
   await figma.setCurrentPageAsync(page);
@@ -1259,6 +1347,7 @@ async function generate(cfg) {
     page.appendChild(sections[s]);
     sections[s].x = x;
     sections[s].y = 0;
+    sections[s].setSharedPluginData(MARKER_NS, OWNED_KEY, '1');
     x += sections[s].width + GUTTER;
     ids.push(sections[s].id);
   }
