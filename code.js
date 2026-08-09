@@ -1,5 +1,5 @@
 /**
- * Blade Docs — Component Documentation Generator
+ * Cofig — Component Documentation Generator
  * Main thread. Reads the selected component, then draws a Razorpay Blade style
  * documentation page onto the canvas.
  *
@@ -1210,8 +1210,8 @@ function buildThumb(target, cfg, data) {
  * Page assembly
  * ------------------------------------------------------------------ */
 
-var MARKER_KEY = 'blade-docs';
-var MARKER_NS = 'bladeDocsGenerator';
+var MARKER_NS = 'cofig';
+var MARKER_KEY = 'docs-target';
 
 async function generate(cfg) {
   var target = await figma.getNodeByIdAsync(cfg.targetId);

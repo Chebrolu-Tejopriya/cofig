@@ -1,6 +1,6 @@
 {
-  "name": "Blade Docs — Component Documentation Generator",
-  "id": "blade-docs-generator",
+  "name": "Cofig — Component Documentation Generator",
+  "id": "cofig",
   "api": "1.0.0",
   "main": "code.js",
   "ui": "ui.html",

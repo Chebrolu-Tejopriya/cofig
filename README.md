@@ -1,4 +1,4 @@
-# Blade Docs — Component Documentation Generator
+# Cofig — Component Documentation Generator
 
 A Figma plugin that generates a full Razorpay-Blade-style documentation page for
 any component you select, in one run.
@@ -17,7 +17,7 @@ No build step. The plugin is plain JavaScript.
 
 1. Figma desktop app → menu → **Plugins → Development → Import plugin from manifest…**
 2. Pick `manifest.json` in this folder.
-3. It now appears under **Plugins → Development → Blade Docs**.
+3. It now appears under **Plugins → Development → Cofig**.
 
 ## Use
 

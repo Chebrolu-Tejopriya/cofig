@@ -178,7 +178,7 @@ guidance stays correct when the component changes.
 
 ---
 
-# What the plugin does with this
+# What Cofig does with this
 
 `code.js` rebuilds the whole language from scratch rather than depending on
 Blade's `_Central` library, so it works in any Figma file. It reads a selected
