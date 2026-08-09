@@ -1,0 +1,659 @@
+<style>
+  :root {
+    --bg: var(--figma-color-bg, #ffffff);
+    --bg-secondary: var(--figma-color-bg-secondary, #f5f5f5);
+    --bg-hover: var(--figma-color-bg-hover, #f0f0f0);
+    --text: var(--figma-color-text, #1e1e1e);
+    --text-secondary: var(--figma-color-text-secondary, #6b7280);
+    --border: var(--figma-color-border, #e5e5e5);
+    --accent: #305eff;
+    --danger: #d92d20;
+    --success: #00a251;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 11px;
+    color: var(--text);
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ---------- header ---------- */
+  header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    flex: none;
+  }
+  .eyebrow {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+  }
+  .component-name {
+    font-size: 15px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .pill {
+    font-size: 10px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 20px;
+    background: rgba(48, 94, 255, 0.1);
+    color: var(--accent);
+  }
+  .meta { color: var(--text-secondary); margin-top: 4px; }
+
+  /* ---------- tabs ---------- */
+  nav {
+    display: flex;
+    gap: 2px;
+    padding: 0 12px;
+    border-bottom: 1px solid var(--border);
+    flex: none;
+  }
+  nav button {
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 10px 10px 8px;
+    font-size: 11px;
+    font-family: inherit;
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+  nav button.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+
+  /* ---------- panels ---------- */
+  main { flex: 1; overflow-y: auto; padding: 16px; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .field { margin-bottom: 16px; }
+  label.title {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .hint { color: var(--text-secondary); margin-bottom: 8px; line-height: 1.5; }
+
+  input[type="text"], textarea, select {
+    width: 100%;
+    font-family: inherit;
+    font-size: 11px;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 7px 8px;
+    outline: none;
+  }
+  input[type="text"]:focus, textarea:focus, select:focus { border-color: var(--accent); }
+  textarea { resize: vertical; line-height: 1.55; min-height: 64px; }
+
+  .checks { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
+  .check { display: flex; align-items: center; gap: 7px; cursor: pointer; }
+  .check input { margin: 0; }
+
+  /* ---------- repeatable cards ---------- */
+  .card {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px;
+    margin-bottom: 10px;
+    background: var(--bg-secondary);
+  }
+  .card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .card-head strong { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); }
+  .row { display: flex; gap: 8px; }
+  .row > * { flex: 1; min-width: 0; }
+  .stack > * + * { margin-top: 6px; }
+
+  .icon-btn {
+    border: none;
+    background: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    padding: 2px 4px;
+    border-radius: 3px;
+  }
+  .icon-btn:hover { background: var(--bg-hover); color: var(--danger); }
+
+  .add-btn {
+    width: 100%;
+    padding: 8px;
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+    background: none;
+    color: var(--text-secondary);
+    font-family: inherit;
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .add-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ---------- props table ---------- */
+  .prop-card { border: 1px solid var(--border); border-radius: 6px; padding: 10px; margin-bottom: 8px; }
+  .prop-name {
+    font-family: ui-monospace, Menlo, monospace;
+    font-weight: 600;
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+  .type-tag {
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 10px;
+    color: var(--accent);
+    background: rgba(48, 94, 255, 0.08);
+    padding: 1px 6px;
+    border-radius: 3px;
+  }
+  .req { color: var(--danger); }
+  .values {
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 10px;
+    color: var(--text-secondary);
+    margin-top: 6px;
+    line-height: 1.5;
+    word-break: break-word;
+  }
+
+  .token-row {
+    display: flex;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 10px;
+  }
+  .token-row span:first-child { flex: 0 0 40%; color: var(--text); }
+  .token-row span:last-child { flex: 1; font-family: ui-monospace, Menlo, monospace; color: var(--accent); word-break: break-word; }
+
+  /* ---------- footer ---------- */
+  footer {
+    flex: none;
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    background: var(--bg);
+  }
+  .primary {
+    flex: 1;
+    padding: 9px 14px;
+    border: none;
+    border-radius: 6px;
+    background: var(--accent);
+    color: #fff;
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .primary:disabled { opacity: 0.45; cursor: not-allowed; }
+  .secondary {
+    padding: 9px 14px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: none;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 11px;
+    cursor: pointer;
+  }
+
+  .status { padding: 0 16px 10px; font-size: 10px; color: var(--text-secondary); }
+  .status.error { color: var(--danger); }
+  .status.ok { color: var(--success); }
+
+  .empty {
+    padding: 48px 24px;
+    text-align: center;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+  .empty h3 { color: var(--text); font-size: 13px; margin: 0 0 8px; }
+  .divider { height: 1px; background: var(--border); margin: 18px 0; }
+  .section-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+</style>
+
+<div id="empty" class="empty">
+  <h3>Select a component</h3>
+  Select a component, component set, or an instance on the canvas and its
+  documentation will be drafted here automatically.
+</div>
+
+<header id="header" style="display:none">
+  <div class="eyebrow">Documentation generator</div>
+  <div class="component-name">
+    <span id="cname">—</span>
+    <span class="pill" id="ctype">component</span>
+  </div>
+  <div class="meta" id="cmeta"></div>
+</header>
+
+<nav id="nav" style="display:none">
+  <button data-tab="overview" class="active">Overview</button>
+  <button data-tab="props">Props</button>
+  <button data-tab="guidance">Guidance</button>
+  <button data-tab="a11y">A11y &amp; Log</button>
+</nav>
+
+<main id="main" style="display:none">
+  <!-- OVERVIEW -->
+  <div class="panel active" data-panel="overview">
+    <div class="field">
+      <label class="title" for="systemName">Design system name</label>
+      <input type="text" id="systemName" placeholder="Acme DS" />
+    </div>
+
+    <div class="field">
+      <label class="title" for="docsLink">Docs link shown in the header</label>
+      <input type="text" id="docsLink" placeholder="design.acme.com" />
+    </div>
+
+    <div class="field">
+      <label class="title" for="status">Status badge</label>
+      <select id="status">
+        <option>Published</option>
+        <option>In Progress</option>
+        <option>Stable</option>
+        <option>Deprecated</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label class="title" for="introduction">Introduction</label>
+      <div class="hint">Opens the documentation. What the component is, when to use it, what to avoid.</div>
+      <textarea id="introduction" rows="8"></textarea>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="field">
+      <div class="section-label">Sections to generate</div>
+      <div class="checks" id="sectionChecks"></div>
+    </div>
+
+    <div class="field">
+      <label class="check"><input type="checkbox" id="darkAnatomy" /> Also draw the anatomy on a dark stage</label>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="field">
+      <div class="section-label">Anatomy labels</div>
+      <div class="hint">Auto-detected from the component's layers. Edit the names that will be pointed at.</div>
+      <div id="anatomyList" class="stack"></div>
+    </div>
+  </div>
+
+  <!-- PROPS -->
+  <div class="panel" data-panel="props">
+    <div class="hint">
+      Read straight from the component's properties. Descriptions are pre-filled from common naming
+      patterns — correct anything that reads wrong before generating.
+    </div>
+    <div id="propsList"></div>
+
+    <div class="divider"></div>
+    <div class="section-label">Detected tokens</div>
+    <div class="hint">Bound variables where they exist, measured values where they do not.</div>
+    <div id="tokensList"></div>
+  </div>
+
+  <!-- GUIDANCE -->
+  <div class="panel" data-panel="guidance">
+    <div class="section-label">Usage guidelines</div>
+    <div class="hint">Each one becomes a block with a Do and a Don't specimen.</div>
+    <div id="usageList"></div>
+    <button class="add-btn" id="addUsage">+ Add usage guideline</button>
+
+    <div class="divider"></div>
+
+    <div class="section-label">Content guidelines</div>
+    <div class="hint">Rules for the words inside the component.</div>
+    <div id="contentList"></div>
+    <button class="add-btn" id="addContent">+ Add content guideline</button>
+  </div>
+
+  <!-- A11Y -->
+  <div class="panel" data-panel="a11y">
+    <div class="section-label">Accessibility</div>
+    <div id="a11yList"></div>
+    <button class="add-btn" id="addA11y">+ Add accessibility note</button>
+
+    <div class="divider"></div>
+
+    <div class="section-label">Changelog</div>
+    <div id="changelogList"></div>
+    <button class="add-btn" id="addChange">+ Add changelog entry</button>
+  </div>
+</main>
+
+<div class="status" id="status"></div>
+
+<footer id="footer" style="display:none">
+  <button class="secondary" id="reset" title="Discard edits and go back to the auto-generated draft">Reset draft</button>
+  <button class="primary" id="generate">Generate documentation</button>
+</footer>
+
+<script>
+  var state = { data: null, defaults: null, cfg: null };
+
+  var SECTION_LIST = [
+    ['introduction', 'Introduction'],
+    ['anatomy', 'Anatomy diagram'],
+    ['props', 'Props & Tokens'],
+    ['variations', 'Variations'],
+    ['usage', 'Usage guidelines'],
+    ['content', 'Content guidelines'],
+    ['platforms', 'Platforms'],
+    ['accessibility', 'Accessibility'],
+    ['changelog', 'Changelog']
+  ];
+
+  function post(msg) { parent.postMessage({ pluginMessage: msg }, '*'); }
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s === undefined || s === null ? '' : s); }
+
+  /* ---------- tabs ---------- */
+  document.querySelectorAll('nav button').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('nav button').forEach(function (b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      document.querySelectorAll('.panel').forEach(function (p) {
+        p.classList.toggle('active', p.dataset.panel === btn.dataset.tab);
+      });
+    });
+  });
+
+  /* ---------- rendering ---------- */
+  function renderSections(cfg) {
+    $('sectionChecks').innerHTML = SECTION_LIST.map(function (s) {
+      var on = cfg.sections[s[0]] !== false;
+      return '<label class="check"><input type="checkbox" data-section="' + s[0] + '"' +
+        (on ? ' checked' : '') + ' /> ' + s[1] + '</label>';
+    }).join('');
+    $('sectionChecks').querySelectorAll('input').forEach(function (i) {
+      i.addEventListener('change', function () { state.cfg.sections[i.dataset.section] = i.checked; });
+    });
+  }
+
+  function renderAnatomy(cfg) {
+    $('anatomyList').innerHTML = cfg.anatomyLabels.map(function (l, i) {
+      return '<input type="text" data-anatomy="' + i + '" value="' + esc(l).replace(/"/g, '&quot;') + '" />';
+    }).join('') || '<div class="hint">No labelled layers detected.</div>';
+    $('anatomyList').querySelectorAll('input').forEach(function (i) {
+      i.addEventListener('input', function () { state.cfg.anatomyLabels[+i.dataset.anatomy] = i.value; });
+    });
+  }
+
+  function renderProps(cfg) {
+    if (!cfg.props.length) {
+      $('propsList').innerHTML = '<div class="hint">This component exposes no properties.</div>';
+      return;
+    }
+    $('propsList').innerHTML = cfg.props.map(function (p, i) {
+      var values = p.values && p.values !== 'N/A'
+        ? '<div class="values">Values: ' + esc(p.values).split('\n').join(' · ') + '</div>' : '';
+      return '<div class="prop-card">' +
+        '<div class="prop-name">' + esc(p.name) +
+          (p.required ? '<span class="req">*</span>' : '') +
+          '<span class="type-tag">' + esc(p.type) + '</span>' +
+        '</div>' +
+        '<input type="text" data-prop="' + i + '" data-key="description" placeholder="Describe what this prop does" value="' +
+          esc(p.description).replace(/"/g, '&quot;') + '" />' +
+        '<div class="row" style="margin-top:6px">' +
+          '<input type="text" data-prop="' + i + '" data-key="default" placeholder="Default" value="' + esc(p.default).replace(/"/g, '&quot;') + '" />' +
+          '<label class="check"><input type="checkbox" data-prop="' + i + '" data-key="required"' +
+            (p.required ? ' checked' : '') + ' /> Required</label>' +
+        '</div>' + values +
+      '</div>';
+    }).join('');
+
+    $('propsList').querySelectorAll('[data-prop]').forEach(function (el) {
+      var handler = function () {
+        var p = state.cfg.props[+el.dataset.prop];
+        p[el.dataset.key] = el.type === 'checkbox' ? el.checked : el.value;
+      };
+      el.addEventListener(el.type === 'checkbox' ? 'change' : 'input', handler);
+    });
+  }
+
+  function renderTokens(cfg) {
+    $('tokensList').innerHTML = cfg.tokens.length
+      ? cfg.tokens.map(function (t) {
+          return '<div class="token-row"><span>' + esc(t.property) + '</span><span>' + esc(t.token) + '</span></div>';
+        }).join('')
+      : '<div class="hint">No tokens or measurable styles found on the default variant.</div>';
+  }
+
+  function repeatable(containerId, list, fields, label) {
+    $(containerId).innerHTML = list.map(function (item, i) {
+      var body = fields.map(function (f) {
+        var v = esc(item[f.key]).replace(/"/g, '&quot;');
+        if (f.type === 'textarea') {
+          return '<textarea data-list="' + containerId + '" data-i="' + i + '" data-key="' + f.key +
+            '" rows="2" placeholder="' + f.placeholder + '">' + esc(item[f.key]) + '</textarea>';
+        }
+        return '<input type="text" data-list="' + containerId + '" data-i="' + i + '" data-key="' + f.key +
+          '" placeholder="' + f.placeholder + '" value="' + v + '" />';
+      }).join('');
+      return '<div class="card"><div class="card-head"><strong>' + label + ' ' + (i + 1) + '</strong>' +
+        '<button class="icon-btn" data-remove="' + containerId + '" data-i="' + i + '" title="Remove">×</button></div>' +
+        '<div class="stack">' + body + '</div></div>';
+    }).join('');
+
+    $(containerId).querySelectorAll('[data-list]').forEach(function (el) {
+      el.addEventListener('input', function () {
+        listFor(el.dataset.list)[+el.dataset.i][el.dataset.key] = el.value;
+      });
+    });
+    $(containerId).querySelectorAll('[data-remove]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        listFor(btn.dataset.remove).splice(+btn.dataset.i, 1);
+        renderAll();
+      });
+    });
+  }
+
+  function listFor(containerId) {
+    return {
+      usageList: state.cfg.usage,
+      contentList: state.cfg.content,
+      a11yList: state.cfg.a11y,
+      changelogList: state.cfg.changelog
+    }[containerId];
+  }
+
+  var USAGE_FIELDS = [
+    { key: 'title', placeholder: 'Guideline title' },
+    { key: 'description', type: 'textarea', placeholder: 'Explain the rule' },
+    { key: 'do', placeholder: 'Do — what good looks like' },
+    { key: 'dont', placeholder: 'Don’t — the failure mode' }
+  ];
+  var A11Y_FIELDS = [
+    { key: 'title', placeholder: 'Topic, e.g. Keyboard' },
+    { key: 'description', type: 'textarea', placeholder: 'What must be true for this to be accessible' }
+  ];
+  var CHANGE_FIELDS = [
+    { key: 'version', placeholder: 'v1.0.0' },
+    { key: 'date', placeholder: 'YYYY-MM-DD' },
+    { key: 'text', type: 'textarea', placeholder: 'What changed' }
+  ];
+
+  function renderAll() {
+    var cfg = state.cfg;
+    $('systemName').value = cfg.systemName;
+    $('docsLink').value = cfg.docsLink;
+    $('status').value = cfg.status;
+    $('introduction').value = cfg.introduction;
+    $('darkAnatomy').checked = !!cfg.darkAnatomy;
+    renderSections(cfg);
+    renderAnatomy(cfg);
+    renderProps(cfg);
+    renderTokens(cfg);
+    repeatable('usageList', cfg.usage, USAGE_FIELDS, 'Guideline');
+    repeatable('contentList', cfg.content, USAGE_FIELDS, 'Rule');
+    repeatable('a11yList', cfg.a11y, A11Y_FIELDS, 'Note');
+    repeatable('changelogList', cfg.changelog, CHANGE_FIELDS, 'Entry');
+  }
+
+  /* ---------- simple field bindings ---------- */
+  [['systemName', 'systemName'], ['docsLink', 'docsLink'], ['introduction', 'introduction']].forEach(function (pair) {
+    $(pair[0]).addEventListener('input', function () { state.cfg[pair[1]] = $(pair[0]).value; });
+  });
+  $('status').addEventListener('change', function () { state.cfg.status = $('status').value; });
+  $('darkAnatomy').addEventListener('change', function () { state.cfg.darkAnatomy = $('darkAnatomy').checked; });
+
+  $('addUsage').addEventListener('click', function () {
+    state.cfg.usage.push({ title: '', description: '', do: '', dont: '' }); renderAll();
+  });
+  $('addContent').addEventListener('click', function () {
+    state.cfg.content.push({ title: '', description: '', do: '', dont: '' }); renderAll();
+  });
+  $('addA11y').addEventListener('click', function () {
+    state.cfg.a11y.push({ title: '', description: '' }); renderAll();
+  });
+  $('addChange').addEventListener('click', function () {
+    state.cfg.changelog.push({ version: '', date: '', text: '', type: 'Added' }); renderAll();
+  });
+
+  $('reset').addEventListener('click', function () {
+    state.cfg = buildConfig(state.data, state.defaults, null);
+    renderAll();
+    setStatus('Reset to the auto-generated draft.', 'ok');
+  });
+
+  $('generate').addEventListener('click', function () {
+    $('generate').disabled = true;
+    setStatus('Generating…');
+    post({ type: 'generate', config: state.cfg });
+  });
+
+  function setStatus(text, cls) {
+    var el = $('status');
+    el.textContent = text || '';
+    el.className = 'status' + (cls ? ' ' + cls : '');
+  }
+
+  function buildConfig(data, defaults, saved) {
+    var base = {
+      targetId: data.id,
+      systemName: 'Design System',
+      docsLink: 'design.yourcompany.com',
+      status: 'Published',
+      darkAnatomy: false,
+      introduction: defaults.introduction,
+      props: data.props,
+      tokens: data.tokens,
+      anatomyLabels: data.parts.slice(),
+      usage: defaults.usage,
+      content: defaults.content,
+      a11y: defaults.a11y,
+      changelog: defaults.changelog,
+      sections: {
+        introduction: true, anatomy: true, props: true, variations: true,
+        usage: true, content: true, platforms: true, accessibility: true, changelog: true
+      }
+    };
+    if (saved) {
+      // keep the user's prose, but re-read structure from the live component
+      Object.keys(base).forEach(function (k) {
+        if (k === 'props' || k === 'tokens' || k === 'targetId') return;
+        if (saved[k] !== undefined) base[k] = saved[k];
+      });
+      if (saved.props) {
+        base.props = data.props.map(function (p) {
+          var prev = saved.props.filter(function (s) { return s.key === p.key; })[0];
+          if (prev) { p.description = prev.description; p.required = prev.required; p.default = prev.default; }
+          return p;
+        });
+      }
+      if (saved.anatomyLabels && saved.anatomyLabels.length === data.parts.length) {
+        base.anatomyLabels = saved.anatomyLabels;
+      }
+    }
+    return base;
+  }
+
+  window.onmessage = function (event) {
+    var msg = event.data.pluginMessage;
+    if (!msg) return;
+
+    if (msg.type === 'no-selection') {
+      $('empty').style.display = 'block';
+      ['header', 'nav', 'main', 'footer'].forEach(function (id) { $(id).style.display = 'none'; });
+      setStatus('');
+      return;
+    }
+
+    if (msg.type === 'selection') {
+      state.data = msg.data;
+      state.defaults = msg.defaults;
+      state.cfg = buildConfig(msg.data, msg.defaults, msg.saved);
+
+      $('empty').style.display = 'none';
+      $('header').style.display = 'block';
+      $('nav').style.display = 'flex';
+      $('main').style.display = 'block';
+      $('footer').style.display = 'flex';
+
+      $('cname').textContent = msg.data.name;
+      $('ctype').textContent = msg.data.isSet ? msg.data.variantCount + ' variants' : 'single component';
+      $('cmeta').textContent = msg.data.props.length + ' properties · ' +
+        msg.data.tokens.length + ' tokens · ' + msg.data.parts.length + ' anatomy parts';
+
+      renderAll();
+      $('generate').disabled = false;
+      setStatus(msg.saved ? 'Loaded your saved documentation for this component.' : '');
+      return;
+    }
+
+    if (msg.type === 'busy') { setStatus('Generating…'); return; }
+
+    if (msg.type === 'done') {
+      $('generate').disabled = false;
+      setStatus((msg.result.reused ? 'Updated' : 'Created') + ' page "' + msg.result.pageName +
+        '" with ' + msg.result.sectionCount + ' sections.', 'ok');
+      return;
+    }
+
+    if (msg.type === 'error') {
+      $('generate').disabled = false;
+      setStatus(msg.message, 'error');
+      return;
+    }
+  };
+
+  post({ type: 'ready' });
+</script>

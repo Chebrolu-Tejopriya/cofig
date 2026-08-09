@@ -1,0 +1,13 @@
+{
+  "name": "Blade Docs — Component Documentation Generator",
+  "id": "blade-docs-generator",
+  "api": "1.0.0",
+  "main": "code.js",
+  "ui": "ui.html",
+  "editorType": ["figma"],
+  "documentAccess": "dynamic-page",
+  "networkAccess": {
+    "allowedDomains": ["none"],
+    "reasoning": "The plugin reads the selected component and writes documentation frames onto the canvas. It never sends or receives data."
+  }
+}
