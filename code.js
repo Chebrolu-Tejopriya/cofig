@@ -221,6 +221,7 @@ var TYPE = {
   propType: function () { return { font: FONTS.mono, size: 14, lh: 20, color: COLOR.code }; },
   token: function () { return { font: FONTS.mono, size: 14, lh: 20, color: COLOR.code }; },
   caption: function () { return { font: FONTS.mono, size: 11, lh: 16, color: COLOR.body }; },
+  variantLabel: function () { return { font: FONTS.bodyMedium, size: 13, lh: 20, color: COLOR.strong }; },
   markerLabel: function () { return { font: FONTS.bodyMedium, size: 11, lh: 16, color: COLOR.strong }; },
   badge: function () { return { font: FONTS.bodyRegular, size: 12, lh: 18, color: COLOR.ink }; }
 };
@@ -511,6 +512,36 @@ function labelledSpecimen(node, caption) {
   add(col, node);
   if (caption) add(col, T(caption, opts(TYPE.caption, { align: 'CENTER' })));
   return col;
+}
+
+/**
+ * A single variation, shaped the way Blade shapes one: a white stage holding the
+ * specimen, sitting on a tinted card with the caption beneath it. The stage takes
+ * a floor height so specimens across a row line up however tall each one is.
+ */
+function variantCell(node, caption) {
+  var container = F('container', { dir: 'VERTICAL', gap: 0, align: 'CENTER' });
+  var card = F('main-content', {
+    dir: 'VERTICAL', gap: 24, pad: [24, 24, 24, 24],
+    fill: COLOR.surface, radius: 8, align: 'CENTER'
+  });
+  var stage = F('example-frame', {
+    dir: 'HORIZONTAL', gap: 12, pad: [24, 24, 24, 24],
+    fill: COLOR.white, radius: 4, align: 'CENTER', justify: 'CENTER'
+  });
+  add(stage, node);
+  try { stage.minHeight = 96; } catch (e) { /* older API, stage just hugs */ }
+  add(card, stage);
+  if (caption) add(card, T(caption, opts(TYPE.variantLabel, { align: 'CENTER' })));
+  add(container, card);
+  return container;
+}
+
+/** The row of variation cells inside one block. */
+function variantRow(cells, width) {
+  var row = F('body', { dir: 'HORIZONTAL', gap: 24, width: width, wrap: true, align: 'MIN' });
+  for (var i = 0; i < cells.length; i++) add(row, cells[i]);
+  return row;
 }
 
 /* ------------------------------------------------------------------ *
@@ -1069,6 +1100,96 @@ function buildProps(target, cfg, data) {
   return s.section;
 }
 
+/* Blade does not list a component's properties one axis at a time. It picks the
+ * identity axis — style, variant, intent — and gives each of its values a block
+ * showing every interaction state, then documents size and slot combinations
+ * separately. "States - Primary Button", "States - Secondary Button", and so on.
+ * These patterns spot those axes on an arbitrary component. */
+var AXIS_STYLE = /^(style|variant|intent|type|kind|appearance|emphasis|hierarchy|level)$/i;
+var AXIS_STATE = /^(state|states|status|interaction)$/i;
+var AXIS_SIZE = /^(size|sizes|scale|density)$/i;
+var AXIS_ICON_ONLY = /^(only\s*icon|icon\s*only|is\s*icon\s*only)$/i;
+
+var SLOT_LEADING = /(lead|left|start|prefix|before)/i;
+var SLOT_TRAILING = /(trail|right|end|suffix|after)/i;
+var SLOT_TEXT = /(text|label|title|caption|copy)/i;
+var SLOT_ICON = /icon|glyph|symbol/i;
+
+function findAxis(props, re) {
+  for (var i = 0; i < props.length; i++) {
+    if (re.test(String(props[i].name).trim())) return props[i];
+  }
+  return null;
+}
+
+function valuesOf(p) {
+  return String(p.values || '').split('\n')
+    .map(function (v) { return v.trim(); })
+    .filter(function (v) { return v.length > 0; });
+}
+
+/** The value of a yes/no style variant that means "on". */
+function onValue(p) {
+  var vs = valuesOf(p);
+  for (var i = 0; i < vs.length; i++) if (/^(yes|true|on|enabled|show)$/i.test(vs[i])) return vs[i];
+  return null;
+}
+
+function offValue(p) {
+  var vs = valuesOf(p);
+  for (var i = 0; i < vs.length; i++) if (/^(no|false|off|disabled|hide|hidden)$/i.test(vs[i])) return vs[i];
+  return null;
+}
+
+/**
+ * Which boolean properties drive the icon and text slots. This is what turns
+ * "Show Leading Icon / Show Text / Show Trailing Icon" into Blade's
+ * "Container Type" block — text only, leading icon, trailing icon, icon only.
+ */
+function slotProps(props) {
+  var slots = { leading: null, trailing: null, text: null };
+  for (var i = 0; i < props.length; i++) {
+    var p = props[i];
+    if (p.figmaType !== 'BOOLEAN') continue;
+    var n = String(p.name);
+    if (SLOT_ICON.test(n) && SLOT_LEADING.test(n)) { if (!slots.leading) slots.leading = p; }
+    else if (SLOT_ICON.test(n) && SLOT_TRAILING.test(n)) { if (!slots.trailing) slots.trailing = p; }
+    else if (SLOT_TEXT.test(n) && !SLOT_ICON.test(n)) { if (!slots.text) slots.text = p; }
+  }
+  return slots;
+}
+
+/** Builds the Container Type combinations available on this component. */
+function slotCombinations(slots, iconOnlyProp) {
+  var combos = [];
+  var lead = slots.leading, trail = slots.trailing, text = slots.text;
+  if (!lead && !trail) return combos;
+
+  function make(label, spec) {
+    var setter = {};
+    if (text) setter[text.key] = spec.text;
+    if (lead) setter[lead.key] = spec.lead;
+    if (trail) setter[trail.key] = spec.trail;
+    if (spec.iconOnly !== undefined && iconOnlyProp) {
+      var v = spec.iconOnly ? onValue(iconOnlyProp) : offValue(iconOnlyProp);
+      if (v) setter[iconOnlyProp.key] = v;
+    }
+    combos.push({ label: label, setter: setter });
+  }
+
+  if (text) make('Text Only', { text: true, lead: false, trail: false, iconOnly: false });
+  if (lead) make('Leading Icon + Text', { text: true, lead: true, trail: false, iconOnly: false });
+  if (trail) make('Text + Trailing Icon', { text: true, lead: false, trail: true, iconOnly: false });
+  if (lead && trail) make('Leading + Text + Trailing', { text: true, lead: true, trail: true, iconOnly: false });
+
+  // Icon only is reachable either through a dedicated variant or by dropping the
+  // text and keeping one icon.
+  if (iconOnlyProp && onValue(iconOnlyProp)) make('Icon Only', { text: false, lead: true, trail: false, iconOnly: true });
+  else if (text && lead) make('Icon Only', { text: false, lead: true, trail: false });
+
+  return combos;
+}
+
 function buildVariations(target, cfg, data) {
   var w = WIDTH.variations;
   var s = section({
@@ -1094,22 +1215,98 @@ function buildVariations(target, cfg, data) {
     return s.section;
   }
 
+  var iconOnlyProp = findAxis(variantProps, AXIS_ICON_ONLY);
+  var sizeProp = findAxis(variantProps, AXIS_SIZE);
+  var stateProp = findAxis(variantProps, AXIS_STATE);
+  var styleProp = findAxis(variantProps, AXIS_STYLE);
+  if (styleProp === iconOnlyProp) styleProp = null;
+
+  var blocks = [];
+  var used = {};
+  function claim(p) { if (p) used[p.key] = true; }
+
+  // 1. Size, on its own.
+  if (sizeProp) {
+    var sizeValues = valuesOf(sizeProp).slice(0, 8);
+    blocks.push({
+      name: 'size',
+      title: sizeProp.name,
+      description: 'The component ships in ' + sizeValues.length + ' size' +
+        (sizeValues.length === 1 ? '' : 's') + ': ' + sizeValues.join(', ') + '.',
+      cells: sizeValues.map(function (v) {
+        var setter = {};
+        setter[sizeProp.key] = v;
+        return variantCell(makeInstance(target, setter), sizeProp.name + ' = ' + v);
+      })
+    });
+    claim(sizeProp);
+  }
+
+  // 2. Container type — which slots are filled.
+  var combos = slotCombinations(slotProps(cfg.props), iconOnlyProp);
+  if (combos.length > 1) {
+    blocks.push({
+      name: 'container-type',
+      title: 'Container Type',
+      description: 'There are ' + combos.length + ' ways the container can be filled:\n' +
+        combos.map(function (c) { return '• ' + c.label; }).join('\n'),
+      cells: combos.map(function (c) {
+        return variantCell(makeInstance(target, c.setter), c.label);
+      })
+    });
+    claim(iconOnlyProp);
+  }
+
+  // 3. Every state, once per style value — the heart of Blade's Variations.
+  if (stateProp && styleProp) {
+    var stateValues = valuesOf(stateProp).slice(0, 8);
+    var styleValues = valuesOf(styleProp).slice(0, 6);
+    for (var si = 0; si < styleValues.length; si++) {
+      (function (styleValue) {
+        blocks.push({
+          name: 'states-' + styleValue.toLowerCase(),
+          title: 'States - ' + styleValue,
+          description: 'Every ' + stateProp.name.toLowerCase() + ' of the ' + styleValue +
+            ' ' + data.name + '.',
+          cells: stateValues.map(function (st) {
+            var setter = {};
+            setter[styleProp.key] = styleValue;
+            setter[stateProp.key] = st;
+            return variantCell(makeInstance(target, setter), stateProp.name + ' = ' + st);
+          })
+        });
+      })(styleValues[si]);
+    }
+    claim(stateProp);
+    claim(styleProp);
+  }
+
+  // 4. Anything left over, one axis per block.
   for (var i = 0; i < variantProps.length; i++) {
     var p = variantProps[i];
-    var values = p.values.split('\n').filter(function (v) { return v.trim(); });
-    var specimens = [];
-    for (var j = 0; j < values.length && j < 12; j++) {
-      var setter = {};
-      setter[p.name] = values[j];
-      specimens.push(labelledSpecimen(makeInstance(target, setter), p.name + ' = ' + values[j]));
-    }
-    add(s.body, block({
+    if (used[p.key]) continue;
+    var values = valuesOf(p).slice(0, 12);
+    if (!values.length) continue;
+    blocks.push({
       name: p.name,
       title: p.name,
       description: p.description || 'Available values: ' + values.join(', ') + '.',
+      cells: values.map(function (v) {
+        var setter = {};
+        setter[p.key] = v;
+        return variantCell(makeInstance(target, setter), p.name + ' = ' + v);
+      })
+    });
+  }
+
+  for (var b = 0; b < blocks.length; b++) {
+    add(s.body, block({
+      name: blocks[b].name,
+      title: blocks[b].title,
+      description: blocks[b].description,
       width: w,
-      content: specimenStage(specimens, { width: w, wrap: true, gap: 32 }),
-      divider: i < variantProps.length - 1
+      content: variantRow(blocks[b].cells, w),
+      divider: b < blocks.length - 1
     }), true);
   }
   return s.section;

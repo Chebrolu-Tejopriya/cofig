@@ -192,7 +192,18 @@ component and derives:
   adopted variables yet.
 - **Anatomy** from layer names, cleaned of the housekeeping designers leave
   behind (`(don't hide/unhide)`, leading `×`), with collision-free leader lines.
-- **Variations** by instancing the component once per variant value.
+- **Variations** the way Blade organises them, rather than one block per
+  property. Blade picks the identity axis (style / variant / intent) and gives
+  each of its values a block showing every interaction state — "States -
+  Primary Button", "States - Secondary Button" — then documents size and
+  container type separately. Cofig detects those axes by name and does the
+  same, so a Button with 6 styles and 4 states produces 6 state blocks rather
+  than one flat row of 6 styles.
+
+  The container type block is derived from the boolean slot properties:
+  "Show Leading Icon" / "Show Text" / "Show Trailing Icon" plus an
+  `Only Icon` variant become Text Only, Leading Icon + Text, Text + Trailing
+  Icon, Leading + Text + Trailing, and Icon Only.
 - **Everything prose** — introduction, guidelines, accessibility, changelog —
   from editable defaults you correct in the panel before generating.
 

@@ -46,7 +46,7 @@ alone, so you can park the component below its docs the way Blade does.
 | Props table | `componentPropertyDefinitions` — names, types, variant options, defaults |
 | Tokens table | Bound variables where present, measured padding/gap/radius/fills where not |
 | Anatomy | Layer names, drawn on an instance with every boolean property switched on so optional parts are visible |
-| Variations | One instance per value of each variant property |
+| Variations | Size, container type, and every state once per style value |
 | Platforms | Desktop / tablet / mobile specimens |
 | Introduction | The component's Figma description if it has one, otherwise a template |
 | Guidelines, a11y, changelog | Editable templates |
