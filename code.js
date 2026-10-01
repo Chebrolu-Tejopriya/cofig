@@ -52,6 +52,7 @@ var PROP_COLS = [200, 280, 120, 200, 200];   // = 1000
 var TOKEN_COLS = [280, 720];                 // = 1000
 
 var FONTS = {};
+var PREVIEW_SURFACES = {};
 
 /* ------------------------------------------------------------------ *
  * Small helpers
@@ -104,7 +105,11 @@ function F(name, o) {
     }
     if (o.align) f.counterAxisAlignItems = o.align;
     if (o.justify) f.primaryAxisAlignItems = o.justify;
-    if (o.wrap) f.layoutWrap = 'WRAP';
+    if (o.wrap) {
+      f.layoutWrap = 'WRAP';
+      f.counterAxisSpacing = o.gap || 24;
+      f.counterAxisAlignContent = 'AUTO';
+    }
   } else if (o.width && o.height) {
     f.resize(o.width, o.height);
   }
@@ -236,7 +241,7 @@ function opts(base, extra) {
  * Reusable documentation primitives
  * ------------------------------------------------------------------ */
 
-/** The `.frame-header` equivalent: eyebrow, title, badge, description, right-hand link. */
+/** The `.frame-header` equivalent: eyebrow, title, badge, and description. */
 function frameHeader(o) {
   var header = F('.frame-header', {
     dir: 'HORIZONTAL', gap: 40, width: o.width,
@@ -264,10 +269,6 @@ function frameHeader(o) {
   add(left, content);
   add(header, left);
   fill(left);
-
-  var right = F('right-container', { dir: 'VERTICAL', gap: 40 });
-  add(right, T(o.link || 'Design Documentation', opts(TYPE.eyebrow, { name: 'website-link' })));
-  add(header, right);
 
   return header;
 }
@@ -324,7 +325,6 @@ function section(o) {
     description: o.description,
     category: o.category || 'Documentation',
     system: o.system,
-    link: o.link,
     badge: o.badge
   }), true);
 
@@ -519,20 +519,21 @@ function labelledSpecimen(node, caption) {
  * specimen, sitting on a tinted card with the caption beneath it. The stage takes
  * a floor height so specimens across a row line up however tall each one is.
  */
-function variantCell(node, caption) {
+function variantCell(node, caption, dark) {
   var container = F('container', { dir: 'VERTICAL', gap: 0, align: 'CENTER' });
   var card = F('main-content', {
     dir: 'VERTICAL', gap: 24, pad: [24, 24, 24, 24],
-    fill: COLOR.surface, radius: 8, align: 'CENTER'
+    fill: dark ? '#16202f' : COLOR.surface, radius: 8, align: 'CENTER'
   });
   var stage = F('example-frame', {
     dir: 'HORIZONTAL', gap: 12, pad: [24, 24, 24, 24],
-    fill: COLOR.white, radius: 4, align: 'CENTER', justify: 'CENTER'
+    fill: dark ? COLOR.dark : COLOR.white, radius: 4, align: 'CENTER', justify: 'CENTER'
   });
   add(stage, node);
   try { stage.minHeight = 96; } catch (e) { /* older API, stage just hugs */ }
   add(card, stage);
-  if (caption) add(card, T(caption, opts(TYPE.variantLabel, { align: 'CENTER' })));
+  if (caption) add(card, T(caption, opts(TYPE.variantLabel, { align: 'CENTER',
+    color: dark ? '#b0c1d3' : COLOR.strong })));
   add(container, card);
   return container;
 }
@@ -654,7 +655,33 @@ function maxTier(items) {
  * labelled leader lines pointing at each part. Parts in the top half of the
  * component are labelled above it, the rest below.
  */
-function anatomyStage(instance, labelMap, contentWidth, dark) {
+function applyVariableMode(instance, collectionId, modeId) {
+  instance.setExplicitVariableModeForCollection(collectionId, modeId);
+  instance.findAll(function () { return true; }).forEach(function (n) {
+    if (n.explicitVariableModes && n.explicitVariableModes[collectionId]) {
+      n.setExplicitVariableModeForCollection(collectionId, modeId);
+    }
+  });
+}
+
+function applyAnatomyTheme(instance, themes, dark) {
+  (themes || []).forEach(function (theme) {
+    var mode = theme.modes.filter(function (m) {
+      return m.name.trim().toLowerCase() === (dark ? 'dark' : 'light');
+    })[0];
+    if (mode) applyVariableMode(instance, theme.id, mode.modeId);
+  });
+}
+
+function bindPreviewSurface(node, themes, surfaceVariableId, dark) {
+  var variable = PREVIEW_SURFACES[surfaceVariableId];
+  if (!variable) return;
+  node.fills = [figma.variables.setBoundVariableForPaint(node.fills[0], 'color', variable)];
+  applyAnatomyTheme(node, themes, dark);
+}
+
+function anatomyStage(instance, labelMap, contentWidth, dark, themes, surfaceVariableId) {
+  applyAnatomyTheme(instance, themes, dark);
   var parts = collectParts(instance, 8);
   var keys = partKeys(parts.map(function (p) { return p.name; }));
 
@@ -668,7 +695,8 @@ function anatomyStage(instance, labelMap, contentWidth, dark) {
     if (!text) continue;
     items.push({
       rect: rect,
-      label: T(text, opts(TYPE.markerLabel, { align: 'CENTER', name: 'label' })),
+      label: T(text, opts(TYPE.markerLabel, { align: 'CENTER', name: 'label',
+        color: dark ? '#b0c1d3' : COLOR.strong })),
       above: rect.cy < instance.height / 2
     });
   }
@@ -711,6 +739,7 @@ function anatomyStage(instance, labelMap, contentWidth, dark) {
     align: 'CENTER', justify: 'CENTER', radius: 8
   });
   add(wrap, stage);
+  bindPreviewSurface(wrap, themes, surfaceVariableId, dark);
   return wrap;
 }
 
@@ -936,6 +965,85 @@ async function componentNameFor(value) {
   }
 }
 
+// Modes are not component properties. Discover only collections actually used
+// by this component, following aliases across every mode and every variant.
+async function readThemes(target) {
+  var collections = {}, visited = {}, warnings = [];
+  async function collection(id) {
+    if (Object.prototype.hasOwnProperty.call(collections, id)) return;
+    try {
+      collections[id] = await figma.variables.getVariableCollectionByIdAsync(id);
+      if (!collections[id]) warnings.push('Variable collection unavailable: ' + id);
+    } catch (e) {
+      collections[id] = null;
+      warnings.push('Variable collection unavailable: ' + id);
+    }
+  }
+  async function aliases(value) {
+    if (!value || typeof value !== 'object') return;
+    if (value.type === 'VARIABLE_ALIAS' && value.id) { await variable(value.id); return; }
+    var keys = Object.keys(value);
+    for (var i = 0; i < keys.length; i++) await aliases(value[keys[i]]);
+  }
+  async function variable(id) {
+    if (visited[id]) return;
+    visited[id] = true;
+    try {
+      var v = await figma.variables.getVariableByIdAsync(id);
+      if (!v) { warnings.push('Variable unavailable: ' + id); return; }
+      await collection(v.variableCollectionId);
+      await aliases(v.valuesByMode);
+    } catch (e) { warnings.push('Variable unavailable: ' + id); }
+  }
+  var nodes = [target].concat(target.findAll ? target.findAll(function () { return true; }) : []);
+  for (var i = 0; i < nodes.length; i++) {
+    var n = nodes[i];
+    await aliases(n.boundVariables);
+    // Paints, effects, component properties and styled text can carry bindings
+    // that are not exposed on the node's boundVariables map.
+    await aliases(n.fills);
+    await aliases(n.strokes);
+    await aliases(n.effects);
+    if (n.type === 'INSTANCE') await aliases(n.componentProperties);
+    if (n.type === 'TEXT' && n.characters.length) {
+      await aliases(n.getStyledTextSegments(['boundVariables', 'fills']));
+    }
+    var explicit = n.explicitVariableModes || {};
+    var ids = Object.keys(explicit);
+    for (var j = 0; j < ids.length; j++) await collection(ids[j]);
+  }
+  // Prefer a neutral semantic surface in collections this component uses.
+  // Keep Variable objects inside the plugin; only send their IDs to the UI.
+  var surfaceVariableId = null;
+  if (figma.variables.getLocalVariablesAsync) {
+    var colors = await figma.variables.getLocalVariablesAsync('COLOR');
+    var surfaceNames = ['surface/surface-raised', 'surface/surface-secondary',
+      'background/secondary', 'surface/surface-primary'];
+    for (var sn = 0; sn < surfaceNames.length && !surfaceVariableId; sn++) {
+      var matches = colors.filter(function (v) { return v.name.toLowerCase() === surfaceNames[sn]; });
+      var candidate = matches.filter(function (v) { return collections[v.variableCollectionId]; })[0] || matches[0];
+      if (candidate) {
+        PREVIEW_SURFACES[candidate.id] = candidate;
+        surfaceVariableId = candidate.id;
+        await variable(candidate.id);
+      }
+    }
+  }
+  var dv = defaultVariantOf(target);
+  var resolved = dv.resolvedVariableModes || {};
+  var themes = Object.keys(collections).map(function (id) { return collections[id]; })
+    .filter(function (c) { return c && c.modes.length > 1; })
+    .map(function (c) {
+      var modeId = resolved[c.id] || c.defaultModeId;
+      var mode = c.modes.filter(function (m) { return m.modeId === modeId; })[0];
+      return { id: c.id, name: c.name, modes: c.modes.map(function (m) {
+        return { modeId: m.modeId, name: m.name };
+      }), defaultModeId: modeId, default: mode ? mode.name : 'N/A' };
+    });
+  themes.sort(function (a, b) { return a.name.localeCompare(b.name); });
+  return { themes: themes, warnings: warnings, surfaceVariableId: surfaceVariableId };
+}
+
 async function analyze(target) {
   var dv = defaultVariantOf(target);
   var defs = target.componentPropertyDefinitions || {};
@@ -948,7 +1056,7 @@ async function analyze(target) {
     var name = key.split('#')[0];
     var type = 'string';
     var values = 'N/A';
-    var required = false;
+    var required = true;
     var dflt = d.defaultValue === undefined || d.defaultValue === null ? 'N/A' : String(d.defaultValue);
 
     if (d.type === 'VARIANT') {
@@ -991,6 +1099,7 @@ async function analyze(target) {
   var parts = collectParts(dv, 8, true).map(function (p) { return p.name; });
   var keys = partKeys(parts);
   var tokens = await readTokens(dv);
+  var themeData = await readThemes(target);
 
   return {
     id: target.id,
@@ -1001,7 +1110,10 @@ async function analyze(target) {
     props: props,
     parts: parts,
     partKeys: keys,
-    tokens: tokens
+    tokens: tokens,
+    themes: themeData.themes,
+    surfaceVariableId: themeData.surfaceVariableId,
+    themeWarnings: themeData.warnings
   };
 }
 
@@ -1056,7 +1168,7 @@ function buildIntroduction(target, cfg, data) {
     name: '_Introduction',
     title: 'Introduction',
     description: data.name + ' component',
-    width: w, system: cfg.systemName, link: cfg.docsLink, badge: cfg.status
+    width: w, system: cfg.systemName, badge: cfg.status
   });
 
   add(s.body, T(cfg.introduction, opts(TYPE.sectionDesc, { width: w, name: 'intro-copy' })), true);
@@ -1068,13 +1180,36 @@ function buildIntroduction(target, cfg, data) {
       if (cfg.anatomyLabels && cfg.anatomyLabels[i]) labelMap[origin[i]] = cfg.anatomyLabels[i];
     }
     var anatomy = F('anatomy', { dir: 'VERTICAL', gap: 16, width: w });
-    add(anatomy, anatomyStage(makeAnatomyInstance(target), labelMap, w, false), true);
+    add(anatomy, anatomyStage(makeAnatomyInstance(target), labelMap, w, false, data.themes, data.surfaceVariableId), true);
     if (cfg.darkAnatomy) {
-      add(anatomy, anatomyStage(makeAnatomyInstance(target), labelMap, w, true), true);
+      add(anatomy, anatomyStage(makeAnatomyInstance(target), labelMap, w, true, data.themes, data.surfaceVariableId), true);
     }
     add(s.body, anatomy, true);
   }
+  addIntroductionDensities(s.body, target, cfg, data, w);
   return s.section;
+}
+
+function addIntroductionDensities(body, target, cfg, data, width) {
+  (data.themes || []).filter(function (theme) { return /density/i.test(theme.name); }).forEach(function (density) {
+    [false].concat(cfg.darkAnatomy ? [true] : []).forEach(function (dark) {
+      var cells = density.modes.map(function (mode) {
+        var instance = makeInstance(target);
+        applyVariableMode(instance, density.id, mode.modeId);
+        applyAnatomyTheme(instance, data.themes, dark);
+        var cell = variantCell(instance, density.name + ' = ' + mode.name, dark);
+        var card = cell.children[0];
+        bindPreviewSurface(card, data.themes, data.surfaceVariableId, dark);
+        var stage = card.children.filter(function (n) { return n.name === 'example-frame'; })[0];
+        bindPreviewSurface(stage, data.themes, data.surfaceVariableId, dark);
+        return cell;
+      });
+      add(body, block({ name: dark ? 'introduction-density-dark' : 'introduction-density-light',
+        title: density.name + (dark ? ' — Dark' : ' — Light'),
+        description: 'Compare ' + density.modes.map(function (m) { return m.name; }).join(' and ') + '.',
+        width: width, content: variantRow(cells, width), divider: false }), true);
+    });
+  });
 }
 
 function buildProps(target, cfg, data) {
@@ -1083,13 +1218,26 @@ function buildProps(target, cfg, data) {
     name: '_Component Props',
     title: 'Props & Tokens',
     description: 'Properties offered by the component useful for developers',
-    width: w, system: cfg.systemName, link: cfg.docsLink
+    width: w, system: cfg.systemName
   });
 
   var propsGroup = F('props', { dir: 'VERTICAL', gap: 16, width: w });
   add(propsGroup, textItem('Props', 'Prop list for the component', w), true);
   add(propsGroup, propsTable(cfg.props, w), true);
   add(s.body, propsGroup, true);
+
+  if (data.themes.length) {
+    var themesGroup = F('themes', { dir: 'VERTICAL', gap: 16, width: w });
+    add(themesGroup, textItem('Themes & Modes', 'Variable collection switches used by the component', w), true);
+    add(themesGroup, tokensTable(data.themes.map(function (theme) {
+      return { property: theme.name, token: theme.modes.map(function (m) { return m.name; }).join(', ') +
+        '\nCurrent mode: ' + theme.default };
+    }), w), true);
+    add(s.body, themesGroup, true);
+  }
+  if (data.themeWarnings.length) {
+    add(s.body, T(data.themeWarnings.join('\n'), opts(TYPE.sectionDesc, { width: w })), true);
+  }
 
   if (cfg.tokens.length) {
     var tokensGroup = F('tokens', { dir: 'VERTICAL', gap: 16, width: w });
@@ -1196,14 +1344,14 @@ function buildVariations(target, cfg, data) {
     name: '_Variations',
     title: 'Variations',
     description: 'Every variation the component ships with, and when to reach for each',
-    width: w, system: cfg.systemName, link: cfg.docsLink
+    width: w, system: cfg.systemName
   });
 
   var variantProps = cfg.props.filter(function (p) {
     return p.figmaType === 'VARIANT' && p.values && p.values !== 'N/A';
   });
 
-  if (!variantProps.length) {
+  if (!variantProps.length && !data.themes.length) {
     add(s.body, block({
       name: 'default',
       title: 'Default',
@@ -1222,6 +1370,30 @@ function buildVariations(target, cfg, data) {
   if (styleProp === iconOnlyProp) styleProp = null;
 
   var blocks = [];
+  function appendThemeBlocks() { data.themes.forEach(function (theme) {
+    blocks.push({
+      name: 'theme-' + theme.id,
+      title: theme.name,
+      description: 'Variable modes: ' + theme.modes.map(function (m) { return m.name; }).join(', ') + '.',
+      cells: theme.modes.map(function (mode) {
+        var inst = makeInstance(target);
+        try {
+          applyVariableMode(inst, theme.id, mode.modeId);
+          var dark = mode.name.trim().toLowerCase() === 'dark';
+          var cell = variantCell(inst, theme.name + ' = ' + mode.name, dark);
+          var card = cell.children[0];
+          bindPreviewSurface(card, data.themes, data.surfaceVariableId, dark);
+          bindPreviewSurface(card.children.filter(function (n) { return n.name === 'example-frame'; })[0],
+            data.themes, data.surfaceVariableId, dark);
+          return cell;
+        } catch (e) {
+          inst.remove();
+          return variantCell(makeInstance(target), theme.name + ' = ' + mode.name +
+            '\nPreview unavailable: ' + e.message);
+        }
+      })
+    });
+  }); }
   var used = {};
   function claim(p) { if (p) used[p.key] = true; }
 
@@ -1260,7 +1432,7 @@ function buildVariations(target, cfg, data) {
   // 3. Every state, once per style value — the heart of Blade's Variations.
   if (stateProp && styleProp) {
     var stateValues = valuesOf(stateProp).slice(0, 8);
-    var styleValues = valuesOf(styleProp).slice(0, 6);
+    var styleValues = valuesOf(styleProp);
     for (var si = 0; si < styleValues.length; si++) {
       (function (styleValue) {
         blocks.push({
@@ -1299,6 +1471,9 @@ function buildVariations(target, cfg, data) {
     });
   }
 
+  // Keep the original size / slots / states ordering. Theme comparisons extend
+  // that screen rather than replacing or interrupting the existing specimens.
+  appendThemeBlocks();
   for (var b = 0; b < blocks.length; b++) {
     add(s.body, block({
       name: blocks[b].name,
@@ -1318,7 +1493,7 @@ function buildUsage(target, cfg) {
     name: '_Usage Guidelines',
     title: 'Usage Guidelines',
     description: 'General rules and advice while using this component in the product',
-    width: w, system: cfg.systemName, link: cfg.docsLink
+    width: w, system: cfg.systemName
   });
 
   var half = (w - 24) / 2;
@@ -1349,7 +1524,7 @@ function buildContent(target, cfg) {
     name: '_Content Guidelines',
     title: 'Content Guidelines',
     description: 'General rules while writing content for this component',
-    width: w, system: cfg.systemName, link: cfg.docsLink
+    width: w, system: cfg.systemName
   });
 
   var half = (w - 24) / 2;
@@ -1376,7 +1551,7 @@ function buildPlatforms(target, cfg) {
     name: '_Platforms',
     title: 'Platform',
     description: 'How this component behaves across desktop, tablet and mobile',
-    width: w, system: cfg.systemName, link: cfg.docsLink
+    width: w, system: cfg.systemName
   });
 
   var rows = [
@@ -1403,7 +1578,7 @@ function buildAccessibility(cfg) {
     name: '_Accessibility',
     title: 'Accessibility',
     description: 'Accessibility practices to take care of while using this component',
-    width: w, system: cfg.systemName, link: cfg.docsLink,
+    width: w, system: cfg.systemName,
     bodyGap: 24
   });
   for (var i = 0; i < cfg.a11y.length; i++) {
@@ -1420,7 +1595,7 @@ function buildChanges(cfg) {
     name: '_Changes',
     title: 'Changelog',
     description: 'Changes made to this component over time',
-    width: w, system: cfg.systemName, link: cfg.docsLink,
+    width: w, system: cfg.systemName,
     bodyGap: 0
   });
 
@@ -1499,6 +1674,17 @@ async function generate(cfg) {
 
   var data = await analyze(target);
 
+  // Mode changes can resize text in specimens; load source fonts too.
+  var sourceFonts = {};
+  var texts = target.findAll ? target.findAll(function (n) { return n.type === 'TEXT'; }) : [];
+  texts.forEach(function (n) {
+    n.getStyledTextSegments(['fontName']).forEach(function (segment) {
+      var font = segment.fontName;
+      sourceFonts[font.family + '|' + font.style] = font;
+    });
+  });
+  await Promise.all(Object.keys(sourceFonts).map(function (key) { return figma.loadFontAsync(sourceFonts[key]); }));
+
   // Reuse an existing generated page for this component so re-running updates it.
   var pageName = '❖ ' + data.name;
   var page = null;
@@ -1511,21 +1697,14 @@ async function generate(cfg) {
     } catch (e) { /* unloaded page, skip */ }
   }
   var reused = !!page;
-  if (!page) {
-    page = figma.createPage();
-    page.setSharedPluginData(MARKER_NS, MARKER_KEY, target.id);
-  } else {
-    await page.loadAsync();
-    // Only clear Cofig's own sections. Users park real work on this page —
-    // Blade keeps the component set itself below the docs — and wiping the
-    // whole page would delete it.
-    var existing = page.children.slice();
-    for (var k = 0; k < existing.length; k++) {
-      if (isOurs(existing[k])) existing[k].remove();
-    }
-  }
-  page.name = pageName;
-  await figma.setCurrentPageAsync(page);
+  if (page) await page.loadAsync();
+  var originalPage = figma.currentPage;
+  // Figma parents newly created nodes to the current page immediately. Build
+  // off-page so an exception cannot destroy old docs or leave piled-up frames.
+  var staging = figma.createPage();
+  staging.name = pageName + ' (Generating)';
+  await figma.setCurrentPageAsync(staging);
+  try {
 
   var sections = [];
   sections.push(buildThumb(target, cfg, data));
@@ -1541,7 +1720,7 @@ async function generate(cfg) {
   var x = 0;
   var ids = [];
   for (var s = 0; s < sections.length; s++) {
-    page.appendChild(sections[s]);
+    staging.appendChild(sections[s]);
     sections[s].x = x;
     sections[s].y = 0;
     sections[s].setSharedPluginData(MARKER_NS, OWNED_KEY, '1');
@@ -1549,10 +1728,29 @@ async function generate(cfg) {
     ids.push(sections[s].id);
   }
 
+  // Commit only after every section has been built and positioned.
+  if (page) {
+    var existing = page.children.slice();
+    for (var k = 0; k < existing.length; k++) {
+      if (isOurs(existing[k])) existing[k].remove();
+    }
+    sections.forEach(function (node) { page.appendChild(node); });
+    await figma.setCurrentPageAsync(page);
+    staging.remove();
+  } else {
+    page = staging;
+    page.setSharedPluginData(MARKER_NS, MARKER_KEY, target.id);
+  }
+  page.name = pageName;
   figma.currentPage.selection = sections;
   figma.viewport.scrollAndZoomIntoView(sections);
 
   return { pageName: pageName, sectionCount: sections.length, reused: reused, ids: ids };
+  } catch (error) {
+    await figma.setCurrentPageAsync(originalPage);
+    if (!staging.removed && staging !== page) staging.remove();
+    throw error;
+  }
 }
 
 /* ------------------------------------------------------------------ *

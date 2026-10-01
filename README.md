@@ -13,6 +13,18 @@ modelled on — the measurements in the code all come from there.
 
 ## Install
 
+Variable collection switches such as Density (Compact / Comfort) and color
+themes are detected through bindings on all variants and nested layers,
+including aliases. The panel and generated Props & Tokens section list the
+available modes; Variations includes a specimen for each mode. Unavailable
+variables are reported so incomplete theme detection is visible.
+
+Introduction includes density comparisons in Light and, when enabled, Dark
+mode. Anatomy and density backgrounds bind to a neutral semantic surface token
+when available, so their backgrounds follow the design system's variable modes.
+
+Run `node test-themes.js` to check theme discovery and specimen mode selection.
+
 No build step. The plugin is plain JavaScript.
 
 1. Figma desktop app → menu → **Plugins → Development → Import plugin from manifest…**
@@ -53,7 +65,7 @@ alone, so you can park the component below its docs the way Blade does.
 
 ## Panel
 
-- **Overview** — system name, docs link, status badge, introduction, which
+- **Overview** — system name, status badge, introduction, which
   sections to generate, anatomy labels.
 - **Props** — every detected property with an editable description, default and
   required flag. Detected tokens are listed underneath.

@@ -276,11 +276,6 @@
     </div>
 
     <div class="field">
-      <label class="title" for="docsLink">Docs link shown in the header</label>
-      <input type="text" id="docsLink" placeholder="design.acme.com" />
-    </div>
-
-    <div class="field">
       <label class="title" for="status">Status badge</label>
       <select id="status">
         <option>Published</option>
@@ -328,6 +323,9 @@
     <div class="section-label">Detected tokens</div>
     <div class="hint">Bound variables where they exist, measured values where they do not.</div>
     <div id="tokensList"></div>
+    <div class="divider"></div>
+    <div class="section-label">Detected themes & modes</div>
+    <div id="themesList"></div>
   </div>
 
   <!-- GUIDANCE -->
@@ -514,7 +512,6 @@
   function renderAll() {
     var cfg = state.cfg;
     $('systemName').value = cfg.systemName;
-    $('docsLink').value = cfg.docsLink;
     $('status').value = cfg.status;
     $('introduction').value = cfg.introduction;
     $('darkAnatomy').checked = !!cfg.darkAnatomy;
@@ -522,6 +519,14 @@
     renderAnatomy(cfg);
     renderProps(cfg);
     renderTokens(cfg);
+    $('themesList').innerHTML = (state.data.themes || []).map(function (t) {
+      return '<div class="hint"><strong>' + themeText(t.name) + '</strong>: ' +
+        t.modes.map(function (m) { return themeText(m.name); }).join(', ') +
+        ' (current: ' + themeText(t.default) + ')</div>';
+    }).join('') || '<div class="hint">No multi-mode variable collections detected.</div>';
+    $('themesList').innerHTML += (state.data.themeWarnings || []).map(function (warning) {
+      return '<div class="hint">' + themeText(warning) + '</div>';
+    }).join('');
     repeatable('usageList', cfg.usage, USAGE_FIELDS, 'Guideline');
     repeatable('contentList', cfg.content, USAGE_FIELDS, 'Rule');
     repeatable('a11yList', cfg.a11y, A11Y_FIELDS, 'Note');
@@ -529,7 +534,7 @@
   }
 
   /* ---------- simple field bindings ---------- */
-  [['systemName', 'systemName'], ['docsLink', 'docsLink'], ['introduction', 'introduction']].forEach(function (pair) {
+  [['systemName', 'systemName'], ['introduction', 'introduction']].forEach(function (pair) {
     $(pair[0]).addEventListener('input', function () { state.cfg[pair[1]] = $(pair[0]).value; });
   });
   $('status').addEventListener('change', function () { state.cfg.status = $('status').value; });
@@ -566,11 +571,15 @@
     el.className = 'status' + (cls ? ' ' + cls : '');
   }
 
+  function themeText(value) {
+    return esc(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
   function buildConfig(data, defaults, saved) {
     var base = {
+      requiredDefaultsVersion: 1,
       targetId: data.id,
       systemName: 'Design System',
-      docsLink: 'design.yourcompany.com',
       status: 'Published',
       darkAnatomy: false,
       introduction: defaults.introduction,
@@ -590,13 +599,19 @@
     if (saved) {
       // keep the user's prose, but re-read structure from the live component
       Object.keys(base).forEach(function (k) {
-        if (k === 'props' || k === 'tokens' || k === 'targetId' || k === 'anatomyParts') return;
+        if (k === 'props' || k === 'tokens' || k === 'targetId' || k === 'anatomyParts' || k === 'requiredDefaultsVersion') return;
         if (saved[k] !== undefined) base[k] = saved[k];
       });
       if (saved.props) {
         base.props = data.props.map(function (p) {
           var prev = saved.props.filter(function (s) { return s.key === p.key; })[0];
-          if (prev) { p.description = prev.description; p.required = prev.required; p.default = prev.default; }
+          if (prev) {
+            p.description = prev.description;
+            // Older saved configs used unchecked defaults for optional props.
+            // Start those checked too; preserve deliberate edits saved afterward.
+            if (saved.requiredDefaultsVersion === 1) p.required = prev.required;
+            p.default = prev.default;
+          }
           return p;
         });
       }
