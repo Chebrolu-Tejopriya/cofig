@@ -357,7 +357,7 @@
   </div>
 </main>
 
-<div class="status" id="status"></div>
+<div class="status" id="generationStatus" role="status" aria-live="polite"></div>
 
 <footer id="footer" style="display:none">
   <button class="secondary" id="reset" title="Discard edits and go back to the auto-generated draft">Reset draft</button>
@@ -560,13 +560,14 @@
   });
 
   $('generate').addEventListener('click', function () {
+    if (!state.cfg) { setStatus('Select a component first.', 'error'); return; }
     $('generate').disabled = true;
     setStatus('Generating…');
     post({ type: 'generate', config: state.cfg });
   });
 
   function setStatus(text, cls) {
-    var el = $('status');
+    var el = $('generationStatus');
     el.textContent = text || '';
     el.className = 'status' + (cls ? ' ' + cls : '');
   }

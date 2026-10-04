@@ -23,6 +23,7 @@ const previewNode = (name, children = []) => ({ name, children, fills: [{ type: 
   findAll: () => [], setExplicitVariableModeForCollection() {} });
 const context = vm.createContext({
   PREVIEW_SURFACES: {},
+  MODE_COLLECTIONS: { colors: { id: 'colors' } },
   figma: { variables: {
     getVariableByIdAsync: async id => variables[id] || null,
     getVariableCollectionByIdAsync: async id => collections[id] || null,
@@ -34,6 +35,7 @@ const context = vm.createContext({
     children: [previewNode('main-content', [previewNode('example-frame')])] }),
   specimenStage: instances => instances,
   makeInstance: () => ({ applied: [], setExplicitVariableModeForCollection(id, mode) {
+    assert.equal(typeof id, 'object', 'dynamic-page requires a collection object');
     this.applied.push([id, mode]);
   }, findAll: () => [], remove() {} })
 });
@@ -45,6 +47,7 @@ vm.runInContext(source.slice(source.indexOf('function defaultVariantOf'), source
   const data = await context.readThemes(target);
   assert.equal(data.themes.length, 1, 'follow aliases without including single-mode collections');
   assert.equal(data.themes[0].name, 'Density');
+  assert.equal(context.MODE_COLLECTIONS.density, collections.density);
   assert.equal(data.themes[0].default, 'Comfort', 'use inherited resolved mode');
   assert.equal(data.warnings.length, 0, 'alias cycles terminate safely');
   assert.equal(data.surfaceVariableId, 'raised', 'use the semantic surface token for preview backgrounds');

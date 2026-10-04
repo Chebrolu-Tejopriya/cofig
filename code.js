@@ -53,6 +53,7 @@ var TOKEN_COLS = [280, 720];                 // = 1000
 
 var FONTS = {};
 var PREVIEW_SURFACES = {};
+var MODE_COLLECTIONS = {};
 
 /* ------------------------------------------------------------------ *
  * Small helpers
@@ -656,10 +657,12 @@ function maxTier(items) {
  * component are labelled above it, the rest below.
  */
 function applyVariableMode(instance, collectionId, modeId) {
-  instance.setExplicitVariableModeForCollection(collectionId, modeId);
+  var collection = MODE_COLLECTIONS[collectionId];
+  if (!collection) throw new Error('Variable collection unavailable: ' + collectionId);
+  instance.setExplicitVariableModeForCollection(collection, modeId);
   instance.findAll(function () { return true; }).forEach(function (n) {
     if (n.explicitVariableModes && n.explicitVariableModes[collectionId]) {
-      n.setExplicitVariableModeForCollection(collectionId, modeId);
+      n.setExplicitVariableModeForCollection(collection, modeId);
     }
   });
 }
@@ -973,6 +976,7 @@ async function readThemes(target) {
     if (Object.prototype.hasOwnProperty.call(collections, id)) return;
     try {
       collections[id] = await figma.variables.getVariableCollectionByIdAsync(id);
+      if (collections[id]) MODE_COLLECTIONS[id] = collections[id];
       if (!collections[id]) warnings.push('Variable collection unavailable: ' + id);
     } catch (e) {
       collections[id] = null;
@@ -1683,7 +1687,14 @@ async function generate(cfg) {
       sourceFonts[font.family + '|' + font.style] = font;
     });
   });
-  await Promise.all(Object.keys(sourceFonts).map(function (key) { return figma.loadFontAsync(sourceFonts[key]); }));
+  await Promise.all(Object.keys(sourceFonts).map(async function (key) {
+    var font = sourceFonts[key];
+    try { await figma.loadFontAsync(font); }
+    catch (error) {
+      throw new Error('Cannot generate documentation: the component uses an unavailable font (' +
+        font.family + ' / ' + font.style + '). Make this font available in Figma and try again.');
+    }
+  }));
 
   // Reuse an existing generated page for this component so re-running updates it.
   var pageName = '❖ ' + data.name;
@@ -1829,7 +1840,6 @@ async function pushSelection(force) {
   }
   if (!force && target.id === lastTargetId) return;
 
-  lastTargetId = target.id;
   var data = await analyze(target);
   var saved = null;
   try { saved = await figma.clientStorage.getAsync('doc:' + target.id); } catch (e) { /* ignore */ }
@@ -1839,6 +1849,7 @@ async function pushSelection(force) {
     defaults: defaultContent(data),
     saved: saved || null
   });
+  lastTargetId = target.id;
 }
 
 figma.showUI(__html__, { width: 520, height: 720, themeColors: true });
@@ -1870,7 +1881,9 @@ figma.ui.onmessage = async function (msg) {
       return;
     }
   } catch (err) {
-    figma.ui.postMessage({ type: 'error', message: (err && err.message) ? err.message : String(err) });
+    var message = (err && err.message) ? err.message : String(err);
+    figma.ui.postMessage({ type: 'error', message: message });
+    figma.notify(message, { error: true, timeout: 10000 });
   }
 };
 
